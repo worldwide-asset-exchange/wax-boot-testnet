@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# Home inside docker
+NODEOS_HOME=/root/.local/share/eosio/nodeos
+
+docker run -t --sig-proxy=true --name nodeos \
+    -v /opt/eos/nodeos/data:$NODEOS_HOME/data \
+    -v /opt/eos/config.ini:$NODEOS_HOME/config/config.ini \
+    -v /opt/eos/genesis.json:$NODEOS_HOME/config/genesis.json \
+    -v /opt/eos/contracts:/contracts \
+    -v /opt/eos/protocol_features:$NODEOS_HOME/config/protocol_features \
+    -p 127.0.0.1:8888:8888 \
+    -p 9876:9876 \
+    {{ eos_docker_image }} \
+    nodeos --genesis-json $NODEOS_HOME/config/genesis.json

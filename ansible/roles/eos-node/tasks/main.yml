@@ -1,0 +1,74 @@
+- name: update
+  apt:
+    update_cache: yes
+- name: install basic packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - curl
+    - apt-transport-https
+    - ca-certificates
+    - software-properties-common
+    - python-pip
+
+- name: Add apt keys
+  shell: "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -"
+- name: Add repositories
+  apt_repository: repo='deb https://download.docker.com/linux/ubuntu xenial stable' state=present
+- name: update
+  apt:
+    update_cache: yes
+- name: install packages
+  apt:
+    name: docker-ce
+    state: latest
+- file:
+    path: /opt/eos/nodeos/
+    state: directory
+
+- name: Install python-pip
+  raw: apt install -y python-pip
+- name: Install docker-py
+  raw: LC_ALL=C pip install docker-py
+
+- name: Pull EOS image
+  docker_image:
+    name: "{{ eos_docker_image }}"
+- name: Copy configuration
+  template:
+    src: 'roles/eos-node/templates/config.ini'
+    dest: /opt/eos/config.ini
+- name: Copy genesis
+  template:
+    src: 'roles/eos-node/templates/genesis.json'
+    dest: /opt/eos/genesis.json
+- name: Copy system contracts
+  copy:
+    src: 'roles/eos-node/files/contracts'
+    dest: /opt/eos/
+- name: Copy protocol features
+  copy:
+    src: 'roles/eos-node/files/protocol_features'
+    dest: /opt/eos/
+- name: Copy start script
+  template:
+    src: 'roles/eos-node/templates/start'
+    dest: /opt/eos/
+    mode: +x
+- name: Copy systemd service
+  template:
+    src: 'roles/eos-node/templates/eos.service'
+    dest: /etc/systemd/system/eos.service
+- name: Enable service
+  systemd:
+    name: eos
+    enabled: yes
+- name: Start eos
+  systemd:
+    name: eos
+    state: restarted
+    daemon_reload: yes
+- name: Activate protocol features
+  shell: "sleep 10 && curl -X POST http://127.0.0.1:8888/v1/producer/schedule_protocol_feature_activations -d '{\"protocol_features_to_activate\": [\"0ec7e080177b2c02b278d5088611686b49d739925a92d9bfcacd7fc6b74053bd\"]}'"
+  ignore_errors: yes

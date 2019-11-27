@@ -1,0 +1,152 @@
+---
+- hosts: all
+  gather_facts: False
+  become: True
+  run_once: true
+  tasks:
+    - name: Create wallet with default key
+      command: docker exec nodeos cleos wallet create --to-console
+    - name: Importing root key
+      command: docker exec nodeos cleos wallet import --private-key {{ priv_key }}
+
+    - name: Deploy bios contract
+      command: docker exec nodeos cleos set contract eosio /contracts/eosio.bios
+
+    - name: Create base accounts
+      command: docker exec nodeos cleos create account eosio {{item}} {{ initial_key }} {{ initial_key }}
+      ignore_errors: yes
+      with_items:
+        - eosio.bpay
+        - eosio.msig
+        - eosio.names
+        - eosio.ram
+        - eosio.ramfee
+        - eosio.saving
+        - eosio.stake
+        - eosio.token
+        - eosio.vpay
+        - eosio.wrap
+        - eosio.voters
+
+    - name: Deploy token and msig contracts
+      command: docker exec nodeos cleos set contract {{item}} /contracts/{{item}}
+      with_items:
+        - eosio.token
+        - eosio.msig
+        - eosio.wrap
+      ignore_errors: yes
+
+    - name: Create WAX currency
+      command: docker exec nodeos cleos push action eosio.token create '[ "eosio", "46116860184.27387903 WAX" ]' -p eosio.token
+
+    - name: Issue WAX currency
+      command: docker exec nodeos cleos push action eosio.token issue '[ "eosio", "3720000000.00000000 WAX", "memo" ]' -p eosio
+
+    - name: Deploy the system contract
+      command: docker exec nodeos cleos set contract eosio /contracts/eosio.system -p eosio
+
+    - name: Set msig as priviledged
+      command: docker exec nodeos cleos push action eosio setpriv '["eosio.msig", 1]' -p eosio
+
+    - name: Initialize System contract
+      command: docker exec nodeos cleos push action eosio init '[0, "8,WAX"]' -p eosio@active
+
+    - name: Setting up RAM for 'eosio' account
+      command: docker exec nodeos cleos push action eosio setacctram '["eosio", 8388608]' -p eosio
+
+    - name: Create admin.wax account
+      command: docker exec nodeos cleos system newaccount eosio admin.wax {{initial_key}} {{initial_key}} --buy-ram '50000.00000000 WAX' --stake-net '50000.00000000 WAX' --stake-cpu '50000.00000000 WAX' --transfer
+      
+    - name: Setting up unlimited CPU for system account
+      with_items:
+        - eosio
+        - eosio.voters
+        - eosio.token
+        - eosio.msig
+        - eosio.bpay
+        - eosio.names
+        - eosio.ram
+        - eosio.ramfee
+        - eosio.saving
+        - eosio.stake
+        - eosio.vpay
+        - eosio.wrap
+      command: docker exec nodeos cleos push action eosio setacctcpu '["{{ item }}", -1]' -p eosio
+
+    - name: Setting up unlimited Net for system account
+      with_items:
+        - eosio
+        - eosio.voters
+        - eosio.token
+        - eosio.msig
+        - eosio.bpay
+        - eosio.names
+        - eosio.ram
+        - eosio.ramfee
+        - eosio.saving
+        - eosio.stake
+        - eosio.vpay
+        - eosio.wrap
+      command: docker exec nodeos cleos push action eosio setacctnet '["{{ item }}", -1]' -p eosio
+
+    - name: Creating WAX accounts
+      command: docker exec nodeos cleos system newaccount eosio {{item}} admin.wax@active admin.wax@active --buy-ram '50000.00000000 WAX' --stake-net '50000.00000000 WAX' --stake-cpu '50000.00000000 WAX' --transfer
+      with_lines:
+        cat roles/eos-node/files/wax_accounts.csv | awk -F "," '{print $1}'
+
+    #Custom account permissions
+    #waa
+    - name: Setting custom permissions for waa account (account permissions)
+      command: docker exec nodeos cleos set account permission waa newaccount {{item}} active -p waa@active
+      with_lines:
+        grep "waa" roles/eos-node/files/wax_accounts.csv | awk -F "," '{print $2}'
+
+    - name: Setting custom permissions for waa account (action permissions)
+      command: docker exec nodeos cleos set action permission waa {{item}} -p waa@active
+      with_items:
+        - eosio newaccount newaccount
+        - eosio buyrambytes newaccount
+        - eosio delegatebw newaccount
+
+    #wam
+    - name: Setting custom permissions for wam account (account permissions)
+      command: docker exec nodeos cleos set account permission wam newaccount {{item}} active -p wam@active
+      with_lines:
+        grep "wam" roles/eos-node/files/wax_accounts.csv | awk -F "," '{print $2}'
+
+    - name: Setting custom permissions for wam account (action permissions)
+      command: docker exec nodeos cleos set action permission wam {{item}} -p wam@active
+      with_items:
+        - eosio newaccount newaccount
+        - eosio buyrambytes newaccount
+        - eosio delegatebw newaccount
+
+    #genesis.wax
+    - name: Setting custom permissions for genesis.wax account (account permissions)
+      command: docker exec nodeos cleos set account permission genesis.wax awardgenesis {{item}} active -p genesis.wax@active
+      with_lines:
+        grep "genesis.wax" roles/eos-node/files/wax_accounts.csv | awk -F "," '{print $2}'
+
+    - name: Setting custom permissions for genesis.wax account (action permissions)
+      command: docker exec nodeos cleos set action permission genesis.wax {{item}} -p genesis.wax@active
+      with_items:
+        - eosio awardgenesis awardgenesis
+
+    - name: Transferring WAX tokens to genesis.wax account
+      command: docker exec nodeos cleos push action eosio.token transfer '{"from":"eosio", "to":"genesis.wax", "quantity":"3700000000.00000000 WAX", "memo":"genesis"}' -p eosio
+   
+    #orng.wax
+    - name: Setting custom permissions for orng.wax account (account permissions)
+      command: docker exec nodeos cleos set account permission orng.wax active --add-code -p orng.wax@active
+
+    #oracle.wax
+    - name: Setting custom permissions for oracle.wax account (account permissions)
+      command: docker exec nodeos cleos set account permission oracle.wax rngops {{item}} active -p oracle.wax@active
+      with_lines:
+        grep "oracle.wax" roles/eos-node/files/wax_accounts.csv | awk -F "," '{print $2}'
+
+    - name: Setting custom permissions for oracle.wax account (action permissions)
+      command: docker exec nodeos cleos set action permission oracle.wax {{item}} -p oracle.wax@active
+      with_items:
+        - orng.wax setsigpubkey rngops
+        - orng.wax setrand rngops

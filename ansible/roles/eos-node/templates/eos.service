@@ -1,0 +1,15 @@
+[Unit]
+Description=eos-node
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+Restart=always
+ExecStartPre=-/usr/bin/docker stop nodeos
+ExecStartPre=-/usr/bin/docker rm nodeos
+ExecStart=/opt/eos/start
+ExecStop=/usr/bin/docker stop nodeos
+
+[Install]
+WantedBy=multi-user.target

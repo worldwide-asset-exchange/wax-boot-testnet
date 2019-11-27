@@ -12,7 +12,7 @@ The scripts contained in this repository allow you to:
 
 ## How to build the testnet from scratch?
 
-  - Get the latest version of the system contracts:
+  - Get the latest version of the system contracts (optional, v1.7.0-1.3.0 is included in this repo):
     ```
     # make get_latest_system_contracts
     ```
@@ -40,6 +40,7 @@ The scripts contained in this repository allow you to:
 
   - Adding a new producer node
     ```
-    $ PRODUCER_NAME=<NEW_PRODUCER_NAME> INITIAL_KEY=<EOSIO_PUB_KEY> PUB_KEY=<NEW_PRODUCER_PUB_KEY> PRIV_KEY=<NEW_PRODUCER_PRIV_KEY> PEER=<EOSIO_NODE_IP> make create_producer_node
+    # PRODUCER_NAME=<NEW_PRODUCER_NAME> INITIAL_KEY=<EOSIO_PUB_KEY> PUB_KEY=<NEW_PRODUCER_PUB_KEY> PRIV_KEY=<NEW_PRODUCER_PRIV_KEY> PEER=<EOSIO_NODE_IP> make create_producer_node
     ```
+    
     After running this, the node will be ready to produce blocks. You just have to create the NEW_PRODUCER_NAME account and vote it in.
